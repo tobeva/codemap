@@ -13,14 +13,14 @@ class Tree:
         self.compute_size(self.root)
 
     def get_treemap_data(self):
-        return self.get_treemap_data_(self.root)
+        data = [TreemapData("", self.root)]
+        return data + self.get_treemap_data_(self.root)
 
-    def get_treemap_data_(self, node):
+    def get_treemap_data_(self, parent):
         data = []
-        for child in node.children.values():
-            data.append(TreemapData(node, child))
-            child_data = self.get_treemap_data_(child)
-            data += child_data
+        for child in parent.children.values():
+            data.append(TreemapData(parent, child))
+            data += self.get_treemap_data_(child)
         return data
 
     def compute_size(self, node, level=0):
@@ -48,8 +48,8 @@ class Tree:
 
 class TreemapData:
     def __init__(self, parent, child):
+        self.parent = parent
         self.node = child
-        self.parent = parent.rel_path
 
 class Node:
     def __init__(self, full_path, rel_path):
@@ -110,13 +110,24 @@ def format_name(node):
     return f"{node.name} - {line_str} {bytes_str}"
 
 
-def create_treemap(root, data):
+def format_parent(parent):
+    if type(parent) == str:
+        return parent
+    return str(parent.rel_path)
+
+
+def create_treemap(data, repo_path):
     names = [format_name(x.node) for x in data]
     ids = [str(x.node.rel_path) for x in data]
-    parents = [str(x.parent) for x in data]
+    parents = [format_parent(x.parent) for x in data]
     values = [x.node.bytes for x in data]
+    title_str = repo_path
+
+    print(names[:10])
+    print(parents[:10])
+
     fig = px.treemap(names=names, ids=ids, parents=parents, values=values,
-                     branchvalues='total', title=str(root))
+                     branchvalues='total', title=title_str)
     fig.update_traces(root_color="lightgrey")
     fig.update_layout(margin=dict(t=50, l=25, r=25, b=25))
     fig.show()
@@ -138,7 +149,7 @@ def create(repo_root, repo_path, config):
     tree = create_tree(repo_path, root, paths)
     #print_tree(root)
     data = tree.get_treemap_data()
-    create_treemap(root, data)
+    create_treemap(data, repo_path)
 
 
 if __name__ == '__main__':
