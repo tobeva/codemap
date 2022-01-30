@@ -5,44 +5,60 @@ import click
 import plotly.express as px
 
 
-class Node:
-    def __init__(self, path):
-        path = Path(path)
-        self.name = path.stem
-        self.path = path
-        self.children = {}
-        if path.exists() and not path._is_dir():
-            self.lines = self.count_lines()
-        else:
-            self.lines = 0
-
-    def add_child(self, path):
-        child_name = path.stem
-        return self.children.setdefault(child_name, Node(path))
-
-
 class TreemapData:
     def __init__(self, node, child):
         self.name = child.name
-        self.id = child.path
-        self.parent = node.path
+        self.id = child.rel_path
+        self.parent = node.rel_path
+        self.lines = child.lines
 
-def get_paths(base):
-    base = Path(base)
+class Tree:
+    def __init__(self, root):
+        self.root = root
+
+
+class Node:
+    def __init__(self, full_path, rel_path):
+        full_path = Path(full_path)
+        rel_path = Path(rel_path)
+        self.name = rel_path.stem
+        self.full_path = full_path
+        self.rel_path = rel_path
+        self.children = {}
+        self.lines = 0  # set later in compute_lines()
+
+    def add_child(self, full_path, rel_path):
+        child_name = rel_path.stem
+        return self.children.setdefault(child_name, Node(full_path, rel_path))
+
+
+def get_paths(root):
+    root = Path(root)
     paths = []
-    for root, dirs, files in os.walk(base, topdown=False):
+    for root, dirs, files in os.walk(root, topdown=False):
         for name in files:
-            full_path = Path(os.path.join(root, name))
-            rel_path = full_path.relative_to(base)
-            paths.append(rel_path)
+            paths.append(Path(os.path.join(root, name)))
     return paths
 
 
 def print_tree(node, indent=0):
     indent_str = " " * indent
-    print(f"{indent_str}{node.name}")
+    print(f"{indent_str}{node.name} {node.rel_path} {node.full_path} {node.lines}")
     for child in node.children.values():
         print_tree(child, indent + 2)
+
+
+def compute_lines(node, level=0):
+    """Recursively set node.lines for the whole tree."""
+    path = node.full_path
+    if path.exists() and not path.is_dir():
+        try:
+            node.lines = len(open(path).readlines())
+        except UnicodeDecodeError:
+            node.lines = 1000  # size of binary?
+    else:
+        node.lines = sum(compute_lines(child, level + 1) for child in node.children.values())
+    return node.lines
 
 
 def get_treemap_data(node):
@@ -54,14 +70,18 @@ def get_treemap_data(node):
     return data
 
 
-def create_tree(paths, root_name):
-    root = Node(root_name)
-    for path in paths:
+def create_tree(base, paths, root_name):
+    base = Path(base)
+    root = Node(root_name, root_name)
+    for file_path in paths:
         node = root
-        child_path = Path(root_name)
-        for name in path.parts:
+        rel_path = file_path.relative_to(base)
+        child_path = Path("")
+        for name in rel_path.parts:
             child_path /= name
-            node = node.add_child(child_path)
+            full_path = base / child_path
+            node = node.add_child(full_path, child_path)
+    compute_lines(root)
     return root
 
 
@@ -69,7 +89,8 @@ def create_treemap(data):
     names = [x.name for x in data]
     ids = [str(x.id) for x in data]
     parents = [str(x.parent) for x in data]
-    fig = px.treemap(names=names, ids=ids, parents=parents)
+    values = [x.lines for x in data]
+    fig = px.treemap(names=names, ids=ids, parents=parents, values=values)
     fig.update_traces(root_color="lightgrey")
     fig.update_layout(margin=dict(t=50, l=25, r=25, b=25))
     fig.show()
@@ -80,9 +101,10 @@ def create_treemap(data):
 @click.option('--root_name', default="root",
               help="Name to use as root in the treepmap")
 def create(root, root_name):
+    root = Path(root)
     paths = get_paths(root)
-    root = create_tree(paths, root_name)
-    print_tree(root)
+    root = create_tree(root, paths, root_name)
+    #print_tree(root)
     data = get_treemap_data(root)
     create_treemap(data)
 
