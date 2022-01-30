@@ -4,8 +4,6 @@ from pathlib import Path
 import click
 import plotly.express as px
 
-ROOT_NAME = "root"
-
 
 class Node:
     def __init__(self, path):
@@ -79,9 +77,11 @@ def create_treemap(data):
 
 @click.command()
 @click.argument('root')
-def create(root):
+@click.option('--root_name', default="root",
+              help="Name to use as root in the treepmap")
+def create(root, root_name):
     paths = get_paths(root)
-    root = create_tree(paths, ROOT_NAME)
+    root = create_tree(paths, root_name)
     print_tree(root)
     data = get_treemap_data(root)
     create_treemap(data)
