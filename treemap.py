@@ -2,6 +2,7 @@ import os
 from pathlib import Path
 
 import click
+import humanize
 import plotly.express as px
 
 
@@ -46,7 +47,7 @@ class Tree:
 
 class TreemapData:
     def __init__(self, node, child):
-        self.name = child.name
+        self.node = child
         self.id = child.rel_path
         self.parent = node.rel_path
         self.lines = child.lines
@@ -85,10 +86,6 @@ def print_tree(node, indent=0):
         print_tree(child, indent + 2)
 
 
-
-
-
-
 def create_tree(base, paths, root_name):
     base = Path(base)
     root = Node(root_name, root_name)
@@ -103,8 +100,17 @@ def create_tree(base, paths, root_name):
     return Tree(root)
 
 
+def format_name(node):
+    if node.lines < 1_000_000:
+        line_str = humanize.intcomma(node.lines)
+    else:
+        line_str = humanize.intword(node.lines)
+    bytes_str = humanize.naturalsize(node.bytes)
+    return f"{node.name} - {line_str} lines {bytes_str}"
+
+
 def create_treemap(data):
-    names = [f"{x.name} - {x.lines} lines" for x in data]
+    names = [format_name(x.node) for x in data]
     ids = [str(x.id) for x in data]
     parents = [str(x.parent) for x in data]
     values = [x.lines for x in data]
