@@ -90,7 +90,7 @@ def create_treemap(data):
     ids = [str(x.id) for x in data]
     parents = [str(x.parent) for x in data]
     values = [x.lines for x in data]
-    fig = px.treemap(names=names, ids=ids, parents=parents, values=values)
+    fig = px.treemap(names=names, ids=ids, parents=parents, values=values, branchvalues='total')
     fig.update_traces(root_color="lightgrey")
     fig.update_layout(margin=dict(t=50, l=25, r=25, b=25))
     fig.show()
