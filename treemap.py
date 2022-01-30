@@ -8,6 +8,7 @@ import plotly.express as px
 class Tree:
     def __init__(self, root):
         self.root = root
+        self.compute_size(self.root)
 
     def get_treemap_data(self):
         return self.get_treemap_data_(self.root)
@@ -19,6 +20,28 @@ class Tree:
             child_data = self.get_treemap_data_(child)
             data += child_data
         return data
+
+    def compute_size(self, node, level=0):
+        """Recursively set node.lines and node.bytes for all nodes."""
+        path = node.full_path
+        lines = bytes = 0
+        if path.exists() and not path.is_dir():
+            # We count bytes for all files.
+            bytes = Path(path).stat().st_size
+            try:
+                # We only count lines in text files.
+                lines = len(open(path).readlines())
+            except UnicodeDecodeError:
+                pass
+        else:
+            for child in node.children.values():
+                child_lines, child_bytes = self.compute_size(child, level + 1)
+                lines += child_lines
+                bytes += child_bytes
+
+        node.lines = lines
+        node.bytes = bytes
+        return lines, bytes
 
 
 class TreemapData:
@@ -36,7 +59,10 @@ class Node:
         self.full_path = full_path
         self.rel_path = rel_path
         self.children = {}
-        self.lines = 0  # set later in compute_lines()
+
+        # Set later in compute_size()
+        self.lines = 0
+        self.bytes = 0
 
     def add_child(self, full_path, rel_path):
         child_name = rel_path.name
@@ -59,17 +85,6 @@ def print_tree(node, indent=0):
         print_tree(child, indent + 2)
 
 
-def compute_lines(node, level=0):
-    """Recursively set node.lines for the whole tree."""
-    path = node.full_path
-    if path.exists() and not path.is_dir():
-        try:
-            node.lines = len(open(path).readlines())
-        except UnicodeDecodeError:
-            node.lines = 1000  # size of binary?
-    else:
-        node.lines = sum(compute_lines(child, level + 1) for child in node.children.values())
-    return node.lines
 
 
 
@@ -85,7 +100,6 @@ def create_tree(base, paths, root_name):
             child_path /= name
             full_path = base / child_path
             node = node.add_child(full_path, child_path)
-    compute_lines(root)
     return Tree(root)
 
 
@@ -94,7 +108,8 @@ def create_treemap(data):
     ids = [str(x.id) for x in data]
     parents = [str(x.parent) for x in data]
     values = [x.lines for x in data]
-    fig = px.treemap(names=names, ids=ids, parents=parents, values=values, branchvalues='total')
+    fig = px.treemap(names=names, ids=ids, parents=parents, values=values,
+                     branchvalues='total', title='My Treemap')
     fig.update_traces(root_color="lightgrey")
     fig.update_layout(margin=dict(t=50, l=25, r=25, b=25))
     fig.show()
