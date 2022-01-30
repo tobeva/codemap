@@ -1,3 +1,4 @@
+import json
 import os
 from pathlib import Path
 
@@ -84,9 +85,9 @@ def print_tree(node, indent=0):
         print_tree(child, indent + 2)
 
 
-def create_tree(base, paths, root_name):
+def create_tree(repo_path, base, paths):
     base = Path(base)
-    root = Node(root_name, root_name)
+    root = Node(repo_path, repo_path)
     for file_path in paths:
         node = root
         rel_path = file_path.relative_to(base)
@@ -109,30 +110,35 @@ def format_name(node):
     return f"{node.name} - {line_str} {bytes_str}"
 
 
-def create_treemap(data):
+def create_treemap(root, data):
     names = [format_name(x.node) for x in data]
     ids = [str(x.node.rel_path) for x in data]
     parents = [str(x.parent) for x in data]
     values = [x.node.bytes for x in data]
     fig = px.treemap(names=names, ids=ids, parents=parents, values=values,
-                     branchvalues='total', title='My Treemap')
+                     branchvalues='total', title=str(root))
     fig.update_traces(root_color="lightgrey")
     fig.update_layout(margin=dict(t=50, l=25, r=25, b=25))
     fig.show()
 
 
 @click.command()
-@click.argument('root')
-@click.option('--root_name', default="root",
-              help="Name to use as root in the treepmap")
-def create(root, root_name):
-    root = Path(root)
+@click.argument('repo_root')
+@click.argument('repo_path')
+@click.option('--config', help="JSON config file")
+def create(repo_root, repo_path, config):
+    with open(config) as fp:
+        config_data = json.load(fp)
+    print(config_data)
+
+    root = Path(repo_root) / repo_path
     paths = get_paths(root)
     print(f"Found {len(paths)} files...")
-    tree = create_tree(root, paths, root_name)
+
+    tree = create_tree(repo_path, root, paths)
     #print_tree(root)
     data = tree.get_treemap_data()
-    create_treemap(data)
+    create_treemap(root, data)
 
 
 if __name__ == '__main__':
