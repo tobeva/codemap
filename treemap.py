@@ -1,3 +1,9 @@
+# treemap.py
+#
+# Creates an output HTML file which has a plotly-drive interactive treemap
+# show the size of files into report: in lines for text files and in
+# bytes for all files.
+#
 import json
 import os
 from pathlib import Path
@@ -51,6 +57,7 @@ class TreemapData:
         self.parent = parent
         self.node = child
 
+
 class Node:
     def __init__(self, full_path, rel_path):
         full_path = Path(full_path)
@@ -60,7 +67,7 @@ class Node:
         self.rel_path = rel_path
         self.children = {}
 
-        # Set later in compute_size()
+        # Lines and bytes set later by compute_size()
         self.lines = 0
         self.bytes = 0
 
@@ -116,7 +123,7 @@ def format_parent(parent):
     return str(parent.rel_path)
 
 
-def create_treemap(data, repo_path):
+def create_treemap_figure(data, repo_path):
     names = [format_name(x.node) for x in data]
     ids = [str(x.node.rel_path) for x in data]
     parents = [format_parent(x.parent) for x in data]
@@ -130,14 +137,16 @@ def create_treemap(data, repo_path):
                      branchvalues='total', title=title_str)
     fig.update_traces(root_color="lightgrey")
     fig.update_layout(margin=dict(t=50, l=25, r=25, b=25))
-    fig.show()
+    return fig
 
 
 @click.command()
 @click.argument('repo_root')
 @click.argument('repo_path')
 @click.option('--config', help="JSON config file")
-def create(repo_root, repo_path, config):
+@click.option('--write', help="Write HTML page to this file")
+@click.option('--show', default=False, help="Show the figure with embedded browser")
+def create(repo_root, repo_path, config, write, show):
     with open(config) as fp:
         config_data = json.load(fp)
     print(config_data)
@@ -148,8 +157,14 @@ def create(repo_root, repo_path, config):
 
     tree = create_tree(repo_path, root, paths)
     #print_tree(root)
+
     data = tree.get_treemap_data()
-    create_treemap(data, repo_path)
+    fig = create_treemap_figure(data, repo_path)
+    if write:
+        fig.write_html(write)
+    if show:
+        fig.show()
+
 
 
 if __name__ == '__main__':
