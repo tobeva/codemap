@@ -99,12 +99,14 @@ def create_tree(base, paths, root_name):
 
 
 def format_name(node):
-    if node.lines < 1_000_000:
-        line_str = humanize.intcomma(node.lines)
+    if node.lines == 0:
+        line_str = "binary"
+    elif node.lines < 1_000_000:
+        line_str = f"{humanize.intcomma(node.lines)} lines"
     else:
-        line_str = humanize.intword(node.lines)
+        line_str = f"{humanize.intword(node.lines)} lines"
     bytes_str = humanize.naturalsize(node.bytes)
-    return f"{node.name} - {line_str} lines {bytes_str}"
+    return f"{node.name} - {line_str} {bytes_str}"
 
 
 def create_treemap(data):
