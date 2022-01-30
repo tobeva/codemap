@@ -46,11 +46,9 @@ class Tree:
 
 
 class TreemapData:
-    def __init__(self, node, child):
+    def __init__(self, parent, child):
         self.node = child
-        self.id = child.rel_path
-        self.parent = node.rel_path
-        self.lines = child.lines
+        self.parent = parent.rel_path
 
 class Node:
     def __init__(self, full_path, rel_path):
@@ -111,9 +109,9 @@ def format_name(node):
 
 def create_treemap(data):
     names = [format_name(x.node) for x in data]
-    ids = [str(x.id) for x in data]
+    ids = [str(x.node.rel_path) for x in data]
     parents = [str(x.parent) for x in data]
-    values = [x.lines for x in data]
+    values = [x.node.bytes for x in data]
     fig = px.treemap(names=names, ids=ids, parents=parents, values=values,
                      branchvalues='total', title='My Treemap')
     fig.update_traces(root_color="lightgrey")
@@ -128,6 +126,7 @@ def create_treemap(data):
 def create(root, root_name):
     root = Path(root)
     paths = get_paths(root)
+    print(f"Found {len(paths)} files...")
     tree = create_tree(root, paths, root_name)
     #print_tree(root)
     data = tree.get_treemap_data()
