@@ -21,14 +21,14 @@ class Node:
     def __init__(self, full_path, rel_path):
         full_path = Path(full_path)
         rel_path = Path(rel_path)
-        self.name = rel_path.stem
+        self.name = rel_path.name
         self.full_path = full_path
         self.rel_path = rel_path
         self.children = {}
         self.lines = 0  # set later in compute_lines()
 
     def add_child(self, full_path, rel_path):
-        child_name = rel_path.stem
+        child_name = rel_path.name
         return self.children.setdefault(child_name, Node(full_path, rel_path))
 
 
@@ -86,7 +86,7 @@ def create_tree(base, paths, root_name):
 
 
 def create_treemap(data):
-    names = [x.name for x in data]
+    names = [f"{x.name} - {x.lines} lines" for x in data]
     ids = [str(x.id) for x in data]
     parents = [str(x.parent) for x in data]
     values = [x.lines for x in data]
