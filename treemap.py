@@ -5,17 +5,28 @@ import click
 import plotly.express as px
 
 
+class Tree:
+    def __init__(self, root):
+        self.root = root
+
+    def get_treemap_data(self):
+        return self.get_treemap_data_(self.root)
+
+    def get_treemap_data_(self, node):
+        data = []
+        for child in node.children.values():
+            data.append(TreemapData(node, child))
+            child_data = self.get_treemap_data_(child)
+            data += child_data
+        return data
+
+
 class TreemapData:
     def __init__(self, node, child):
         self.name = child.name
         self.id = child.rel_path
         self.parent = node.rel_path
         self.lines = child.lines
-
-class Tree:
-    def __init__(self, root):
-        self.root = root
-
 
 class Node:
     def __init__(self, full_path, rel_path):
@@ -61,13 +72,6 @@ def compute_lines(node, level=0):
     return node.lines
 
 
-def get_treemap_data(node):
-    data = []
-    for child in node.children.values():
-        data.append(TreemapData(node, child))
-        child_data = get_treemap_data(child)
-        data += child_data
-    return data
 
 
 def create_tree(base, paths, root_name):
@@ -82,7 +86,7 @@ def create_tree(base, paths, root_name):
             full_path = base / child_path
             node = node.add_child(full_path, child_path)
     compute_lines(root)
-    return root
+    return Tree(root)
 
 
 def create_treemap(data):
@@ -103,9 +107,9 @@ def create_treemap(data):
 def create(root, root_name):
     root = Path(root)
     paths = get_paths(root)
-    root = create_tree(root, paths, root_name)
+    tree = create_tree(root, paths, root_name)
     #print_tree(root)
-    data = get_treemap_data(root)
+    data = tree.get_treemap_data()
     create_treemap(data)
 
 
