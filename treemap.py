@@ -10,8 +10,22 @@ from pathlib import Path
 
 import click
 import humanize
+import numpy as np
+import plotly
 import plotly.express as px
 
+IGNORE = ['.git']
+EXTENSIONS = ['.py']
+
+class NpEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, np.integer):
+            return int(obj)
+        if isinstance(obj, np.floating):
+            return float(obj)
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        return json.JSONEncoder.default(self, obj)
 
 class Tree:
     def __init__(self, root):
@@ -79,9 +93,14 @@ class Node:
 def get_paths(root):
     root = Path(root)
     paths = []
-    for root, dirs, files in os.walk(root, topdown=False):
+    for root, dirs, files in os.walk(root, topdown=True):
         for name in files:
-            paths.append(Path(os.path.join(root, name)))
+            if name.startswith('test_'):
+                continue
+            ext = os.path.splitext(name)[1]
+            if ext in EXTENSIONS:
+                paths.append(Path(os.path.join(root, name)))
+        dirs[:] = [x for x in dirs if x not in IGNORE]
     return paths
 
 
@@ -106,46 +125,76 @@ def create_tree(repo_path, base, paths):
     return Tree(root)
 
 
-def format_name(node):
+def format_name(repo_path, node):
     if node.lines == 0:
         line_str = "binary"
     elif node.lines < 1_000_000:
         line_str = f"{humanize.intcomma(node.lines)} lines"
     else:
         line_str = f"{humanize.intword(node.lines)} lines"
-    bytes_str = humanize.naturalsize(node.bytes)
-    return f"{node.name} - {line_str} {bytes_str}"
-
+    return f"{node.name} - {line_str}"
 
 def format_parent(parent):
     if type(parent) == str:
         return parent
     return str(parent.rel_path)
-
+# style='cursor: pointer' target='_blank' rel='noopener noreferrer'
+TEMPLATE="""
+%{label}<br>
+Lines: %{value}<br>
+Google: <a href='http://google.com'>google</a>
+Google2: <a href='http://file/Users/pwinston/benchsci'>google</a>
+File: <a href='vscode://file/Users/pwinston/benchsci/%{value}'>%{value}</a>
+"""
 
 def create_treemap_figure(data, repo_path):
-    names = [format_name(x.node) for x in data]
+    names = [format_name(repo_path, x.node) for x in data]
     ids = [str(x.node.rel_path) for x in data]
     parents = [format_parent(x.parent) for x in data]
-    values = [x.node.bytes for x in data]
+    values = [x.node.lines for x in data]
     title_str = repo_path
 
-    print(names[:10])
-    print(parents[:10])
+    print(plotly.express.colors.named_colorscales())
+
+    # tealrose
+    scale = plotly.express.colors.get_colorscale('temps')
+    colors = plotly.colors.colorscale_to_colors(scale)
+    print(colors[0])
+    print(len(colors))
+
+    #print(names[:10])
+    #print(parents[:10])
+    color_map = {}
+    
+
+    for i, x in enumerate(ids):
+        test = names[i].startswith('test_')
+        depth = ids[i].count('/')
+        color = colors[depth % len(colors)]        
+        if test:
+            r, g, b = plotly.colors.unlabel_rgb(color)
+            r = min(r + 20, 255)
+            g = min(g + 20, 255)
+            b = min(b + 20, 255)
+            color = f"rgb({r}, {g}, {b}"
+        color_map[x] = color
 
     fig = px.treemap(names=names, ids=ids, parents=parents, values=values,
+                     color=ids,
+                     color_discrete_map=color_map, 
                      branchvalues='total', title=title_str)
-    fig.update_traces(root_color="lightgrey")
+    #fig.update_traces(root_color="lightgrey")
     fig.update_layout(margin=dict(t=50, l=25, r=25, b=25))
+    fig.update_traces(texttemplate=TEMPLATE)
     return fig
 
 
 @click.command()
 @click.argument('repo_root')
 @click.argument('repo_path')
-@click.option('--config', help="JSON config file")
+@click.option('--config', default="config.json", help="JSON config file")
 @click.option('--write', help="Write HTML page to this file")
-@click.option('--show', default=False, help="Show the figure with embedded browser")
+@click.option('--show', is_flag=True, help="Show the figure with embedded browser")
 def create(repo_root, repo_path, config, write, show):
     with open(config) as fp:
         config_data = json.load(fp)
@@ -160,11 +209,16 @@ def create(repo_root, repo_path, config, write, show):
 
     data = tree.get_treemap_data()
     fig = create_treemap_figure(data, repo_path)
+
+    print("WRITING")
+    with open("fig.json", "w") as outf:
+        outf.write(json.dumps(fig.to_dict(), indent=4, cls=NpEncoder))
+
     if write:
         fig.write_html(write)
     if show:
         fig.show()
-
+    print("DONE")
 
 
 if __name__ == '__main__':
